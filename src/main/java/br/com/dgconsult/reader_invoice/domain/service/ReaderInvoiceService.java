@@ -62,7 +62,7 @@ public class ReaderInvoiceService {
     }
 
     public void readBoleto(String invoice) {
-        System.out.println("Processando o boleto: " + invoice);
+        System.out.println("\nProcessando o boleto: " + invoice);
         
         pathCompleto = invoice;
         PDDocument pdfDocument = null;
@@ -213,7 +213,7 @@ public class ReaderInvoiceService {
 
     private void processaLinhaDigitavel(String linhaDigitavel) {
         // LIMPA A LINHA DIGITÁVEL REMOVENDO ESPAÇOES E PONTOS
-        String res = linhaDigitavel.replace(".", "").replace(",", "");
+        String res = linhaDigitavel.replace(".", "").replace(",", "").replace(")", "linhaDigitavel");
         res = res.replace(" ", "");
 
         // EXTRAI SOMENTE A PARTE DA DATA E VALOR DA LINHA DIGITÁVEL - VALIDA SE A STRING É TEM O TAMANNHO MINIMO DE UMA LINHA DIGITÁVEL
@@ -272,7 +272,7 @@ public class ReaderInvoiceService {
                 String parteB = parte1.substring(parte1.length() - 17);
                 parteA = parteA + parteB;
             }
-            linhaDigitavelCompleta = parteA.replace(" ", "").replace(".", "").replace(",", "");
+            linhaDigitavelCompleta = parteA.replace(" ", "").replace(".", "").replace(",", "").replace(")", "linhaDigitavel");
             linhaDigitavelCompleta = linhaDigitavelCompleta.substring(linhaDigitavelCompleta.length() -47);
             criaTxtLinhaDigitavel();
         }
