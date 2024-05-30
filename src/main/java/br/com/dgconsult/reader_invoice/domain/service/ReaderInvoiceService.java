@@ -5,11 +5,13 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.Date;
 import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.nio.file.StandardCopyOption;
+import java.text.SimpleDateFormat;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.awt.image.BufferedImage;
@@ -128,7 +130,7 @@ public class ReaderInvoiceService {
             if (pdfDocument != null) {
                 try {
                     pdfDocument.close();
-                    //moverPdfProcessado(origemDestino(successProcess));
+                    moverPdfProcessado(origemDestino(successProcess));
                 } catch (IOException e) {
                     System.err.println("Erro ao mover arquivo: " + e.getMessage());
                     throw new RuntimeException(e);
@@ -217,6 +219,10 @@ public class ReaderInvoiceService {
                 if(parte1.length()>1 && parte2.length()>1){
                     processaExcessaoLinhaDigitavel();
                 }
+            }
+
+            if(linha.contains("VENCIMENTO")){
+                convertUSADate(linha);
             }
             
             String contaEnergia = "836\\d00"; // regex que identifica o inicio do código de barras de uma conta de energia eletrica
@@ -334,6 +340,7 @@ public class ReaderInvoiceService {
         boleto.setCodigoBarras(linhaDigitavelCompleta);
         boleto.setLojaOrigem(nomeArquivo.substring(1, nomeArquivo.length()-4));
         boleto.setValor(valor);
+        boleto.setDataVencimento(dataVencimento);
         boleto.gerarTxt(nomeArquivo, path);
         successProcess = true;
     }
@@ -375,6 +382,20 @@ public class ReaderInvoiceService {
             System.out.println("Ponto de inserção não encontrado na string original.");
         }
         return origemDestino;
+    }
+
+    private void convertUSADate(String data) {
+        data = data.substring(data.length()-10).replace("/", ".");
+        String novoPadrao = "yyyy-MM-dd";
+        SimpleDateFormat formatoEntrada = new SimpleDateFormat("dd.MM.yyyy");
+        SimpleDateFormat formatoSaida = new SimpleDateFormat(novoPadrao);
+
+        try {
+            Date myData = formatoEntrada.parse(data);
+            dataVencimento = formatoSaida.format(myData);
+        } catch (Exception e) {
+            System.out.println(e.getMessage());
+        }
     }
 
     private void printLogoConsult() {
