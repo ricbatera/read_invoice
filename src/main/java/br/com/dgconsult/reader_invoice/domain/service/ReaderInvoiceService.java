@@ -6,6 +6,8 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.List;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.nio.file.StandardCopyOption;
 import java.time.LocalDate;
@@ -21,6 +23,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import br.com.dgconsult.reader_invoice.domain.model.Boleto;
+import br.com.dgconsult.reader_invoice.domain.model.BoletoCodigoBarras;
 import br.com.dgconsult.reader_invoice.domain.model.BoletoLinhaDigitavel;
 import net.sourceforge.tess4j.Tesseract;
 
@@ -90,9 +93,9 @@ public class ReaderInvoiceService {
                 String namePage = "_pag_"+i+".txt";
                 nomeArquivo = invoice.replace(".pdf", namePage).replace("boletos\\", "");
                 if (res.length > 0) {
-                    // System.out.println(texto);
+                    // System.out.println(textoPagina);
                     // processaBoleto(res);
-                    findLinhaDigitável(res);
+                    findLinhaDigitavel(res);
                 }
                 textoCompleto.append(textoPagina);
                 
@@ -113,7 +116,7 @@ public class ReaderInvoiceService {
                     texto = tesseract.doOCR(bim);
                     res = texto.split("\n");
                     // System.out.println(texto);
-                    findLinhaDigitável(res);
+                    findLinhaDigitavel(res);
                 }
                 // processaBoleto(res);
             }
@@ -125,7 +128,7 @@ public class ReaderInvoiceService {
             if (pdfDocument != null) {
                 try {
                     pdfDocument.close();
-                    moverPdfProcessado(origemDestino(successProcess));
+                    //moverPdfProcessado(origemDestino(successProcess));
                 } catch (IOException e) {
                     System.err.println("Erro ao mover arquivo: " + e.getMessage());
                     throw new RuntimeException(e);
@@ -194,8 +197,8 @@ public class ReaderInvoiceService {
         successProcess = true;
     }
 
-    private void findLinhaDigitável(String[] dados) {
-        System.out.println("Processando boleto a procura de linha digitável");
+    private void findLinhaDigitavel(String[] dados) {
+        System.out.println("Procurando linha digitável ou código de barras...");
         String linhaDigitavel = "";
         for (String linha : dados) {
             /*
@@ -215,14 +218,51 @@ public class ReaderInvoiceService {
                     processaExcessaoLinhaDigitavel();
                 }
             }
+            
+            String contaEnergia = "836\\d00"; // regex que identifica o inicio do código de barras de uma conta de energia eletrica
+            String contaSaneamento = "826\\d00"; // regex que identifica o inicio do código de barras de uma conta de saneamento
+            
+            // tratando contas de energia
+            Pattern pattern = Pattern.compile(contaEnergia);
+            Matcher matcher = pattern.matcher(linha);            
+            if(matcher.find()){
+                processaBoletoServicos(dados, linha);
+            }
+            
+            // tratando contas de saneamento
+            pattern = Pattern.compile(contaSaneamento);
+            matcher = pattern.matcher(linha);
+            if(matcher.find()){
+                processaBoletoServicos(dados, linha);
+            }
         }
-        paginas = paginas++;
         // System.out.println("Linha digitável: " + linhaDigitavel);
+    }
+
+    private void processaBoletoServicos(String[] dados, String codigoBarras){
+        if(codigoBarras.length()> 40){
+            // Limpa o códido de barras removendo espaços, pontos, letras e pegando somente os 48 carecteres do código de barras
+            System.out.println("String completa do Código de Barras: "+codigoBarras);
+            codigoBarras = codigoBarras.replace(" ", "").replace(".", "");
+            codigoBarras = codigoBarras.replace("O", "0");
+            codigoBarras = codigoBarras.replaceAll("\\D", "");
+            codigoBarras = codigoBarras.substring(0,48);
+            linhaDigitavelCompleta = codigoBarras;
+
+            //recuperando o valor do código de barras
+            valor = codigoBarras.substring(0, 11) + codigoBarras.substring(12);
+            valor = valor.substring(5, 15);
+            valor = valor.replaceFirst("^0+", "");
+            String reais = valor.substring(0, valor.length() - 2);
+            String centavos = valor.substring(valor.length() - 2);
+            valor = reais+"."+centavos;
+            criaTxtCodBarras();
+        }
     }
 
     private void processaLinhaDigitavel(String linhaDigitavel) {
         // LIMPA A LINHA DIGITÁVEL REMOVENDO ESPAÇOES E PONTOS
-        String res = linhaDigitavel.replace(".", "").replace(",", "").replace(")", "linhaDigitavel");
+        String res = linhaDigitavel.replace(".", "").replace(",", "").replace(")", "");
         res = res.replace(" ", "");
 
         // EXTRAI SOMENTE A PARTE DA DATA E VALOR DA LINHA DIGITÁVEL - VALIDA SE A STRING É TEM O TAMANNHO MINIMO DE UMA LINHA DIGITÁVEL
@@ -246,6 +286,8 @@ public class ReaderInvoiceService {
             res = reais + "." + centavos;
             valor = res;
             criaTxtLinhaDigitavel();
+            parte1 = "";
+            parte2 = "";
             //System.out.println("\nValor: " + res + ". \nVencimento: " + newDate.format(formatter) + ". \nLinha Digitável: " + linhaCompleta + "\n\n");
         } else if(res.length() >= 24){ // abaixo trata uma execessão de um boleto que deu erro de lietura por causa da fonte e separou a linha digitável
             System.out.println("Testando possível execessão na leitura boleto");
@@ -285,6 +327,15 @@ public class ReaderInvoiceService {
             linhaDigitavelCompleta = linhaDigitavelCompleta.substring(linhaDigitavelCompleta.length() -47);
             criaTxtLinhaDigitavel();
         }
+    }
+
+    private void criaTxtCodBarras(){
+        BoletoCodigoBarras boleto = new BoletoCodigoBarras();
+        boleto.setCodigoBarras(linhaDigitavelCompleta);
+        boleto.setLojaOrigem(nomeArquivo.substring(1, nomeArquivo.length()-4));
+        boleto.setValor(valor);
+        boleto.gerarTxt(nomeArquivo, path);
+        successProcess = true;
     }
 
     private void criaTxtLinhaDigitavel(){
