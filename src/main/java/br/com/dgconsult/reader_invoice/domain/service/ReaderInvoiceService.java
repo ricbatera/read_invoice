@@ -57,6 +57,15 @@ public class ReaderInvoiceService {
             files.forEach(boleto -> readBoleto(boleto.toString()));
         } catch (IOException e) {
             e.printStackTrace();
+        } finally {
+            System.out.println(
+                "\n********************************************************"+
+                "\n*****                                              *****"+
+                "\n*****          Processamento finalizado.           *****"+
+                "\n*****       Feche essa janela para continuar.      *****"+
+                "\n*****                                              *****"+
+                "\n********************************************************"
+            );
         }
 
     }
