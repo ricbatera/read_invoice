@@ -95,7 +95,7 @@ public class ReaderInvoiceService {
                 String namePage = "_pag_"+i+".txt";
                 nomeArquivo = invoice.replace(".pdf", namePage).replace("boletos\\", "");
                 if (res.length > 0) {
-                    System.out.println(textoPagina);
+                    // System.out.println(textoPagina);
                     // processaBoleto(res);
                     findLinhaDigitavel(res);
                 }
