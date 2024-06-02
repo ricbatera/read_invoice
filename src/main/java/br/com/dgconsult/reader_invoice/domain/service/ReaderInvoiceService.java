@@ -95,7 +95,7 @@ public class ReaderInvoiceService {
                 String namePage = "_pag_"+i+".txt";
                 nomeArquivo = invoice.replace(".pdf", namePage).replace("boletos\\", "");
                 if (res.length > 0) {
-                    // System.out.println(textoPagina);
+                    System.out.println(textoPagina);
                     // processaBoleto(res);
                     findLinhaDigitavel(res);
                 }
@@ -141,64 +141,7 @@ public class ReaderInvoiceService {
 
 
 
-    private void processaBoleto(String[] dados) {
-        // System.out.println("Tamano do Array: " + dados.length);
-        Boleto boleto = new Boleto();
-        BoletoBuilder builder = new BoletoBuilder();
-        
-
-        // BOLETOS SABESP #VALIDA BOLETO #TIPO: Sabesp
-        if (dados.length > 83 && dados[83].contains("VIA SABESP")) {
-            boleto = builder.buildBoleto(dados, "SABESP");
-            boleto.gerarTxt(nomeArquivo, path);
-            // System.out.println(boleto.toString()); // #APAGAR LOGS
-
-            // BOLETOS MULTIPLAN #VALIDA BOLETO #TIPO: Multiplan
-        } else if (dados.length > 11 && dados[11].contains("Multiplan Arrecadadora Ltda")) {
-            boleto = builder.buildBoleto(dados, "Multiplan");
-            boleto.gerarTxt(nomeArquivo, path);
-            // System.out.println(boleto.toString()); // #APAGAR LOGS
-
-            // BOLETOS CPFL #VALIDA BOLETO #TIPO: CPFL
-        } else if (dados.length > 3 && dados[3].contains("Uma empresa do Grupo CPFL Energia")) {
-            boleto = builder.buildBoleto(dados, "CPFL");
-            boleto.gerarTxt(nomeArquivo, path);
-
-            // BOLETOS ENEL #VALIDA BOLETO #TIPO: ENEL
-        } else if (dados.length > 43 && dados[43].contains("ENEL DISTRIBUIÇÃO SÃO PAULO")) {
-            boleto = builder.buildBoleto(dados, "Enel");
-            boleto.gerarTxt(nomeArquivo, path);
-
-            // BOLETOS ENEL #VALIDA BOLETO #TIPO: SANEAGO
-        } else if (dados.length > 4 && dados[4].contains("SANEAGO")) {
-            boleto = builder.buildBoleto(dados, "Saneago");
-            boleto.gerarTxt(nomeArquivo, path);
-
-            // BOLETOS ENEL #VALIDA BOLETO #TIPO: LIGHT
-        } else if (dados.length > 4 && dados[1].contains("LIGHT SERVIÇOS DE ELETRICIDADE SA")) {
-            boleto = builder.buildBoleto(dados, "Light");
-            boleto.gerarTxt(nomeArquivo, path);
-
-            // BOLETOS ENEL #VALIDA BOLETO #TIPO: EDP
-        } else if (dados.length > 4 && dados[0].contains("EDP São Paulo Distribuição de Energia S.A")) {
-            boleto = builder.buildBoleto(dados, "Edp");
-            boleto.gerarTxt(nomeArquivo, path);
-
-            // BOLETOS ENEL #VALIDA BOLETO #TIPO: ALLOS
-        } else if (dados.length > 4 && dados[8].contains("BOULEVARD SHOPPING BELEM")) {
-            boleto = builder.buildBoleto(dados, "Allos");
-            boleto.gerarTxt(nomeArquivo, path);
-
-            // BOLETOS ENEL #VALIDA BOLETO #TIPO: AIRAZ
-        } else if (dados.length > 4 && dados[4].contains("AIRAZ")) {
-            boleto = builder.buildBoleto(dados, "Airaz");
-            boleto.gerarTxt(nomeArquivo, path);
-
-        }
-
-        successProcess = true;
-    }
-
+ 
     private void findLinhaDigitavel(String[] dados) {
         System.out.println("Procurando linha digitável ou código de barras...");
         String linhaDigitavel = "";
@@ -209,6 +152,8 @@ public class ReaderInvoiceService {
              * 13691 - unicred
              * 03399 - santander
              */
+            
+            dataVencimento = null;
             if (linha.contains("34191") || linha.contains("2379") || linha.contains("13691") || linha.contains("03399")) {
                 linhaDigitavel = linha;
                 processaLinhaDigitavel(linhaDigitavel);
@@ -219,11 +164,7 @@ public class ReaderInvoiceService {
                 if(parte1.length()>1 && parte2.length()>1){
                     processaExcessaoLinhaDigitavel();
                 }
-            }
-
-            if(linha.contains("VENCIMENTO")){
-                convertUSADate(linha);
-            }
+            }            
             
             String contaEnergia = "836\\d00"; // regex que identifica o inicio do código de barras de uma conta de energia eletrica
             String contaSaneamento = "826\\d00"; // regex que identifica o inicio do código de barras de uma conta de saneamento
@@ -241,34 +182,139 @@ public class ReaderInvoiceService {
             if(matcher.find()){
                 processaBoletoServicos(dados, linha);
             }
+            limparCampos();
         }
         // System.out.println("Linha digitável: " + linhaDigitavel);
     }
+  
+
 
     private void processaBoletoServicos(String[] dados, String codigoBarras){
+        for (String linha : dados){
+            if(linha.contains("SABESP")){//DATA VENCIMENTO SABESP
+                int cont = 0;
+                while(!dados[cont].contains("VENCIMENTO:")){
+                    cont++;
+                }
+                // System.out.println("STRING RECEBIDA COM A DATA: "+ dados[cont]);
+                convertUSADate(dados[cont]);
+            }
+            if(linha.contains("ENEL DISTRIBUIÇÃO")){ // DATA DE VENCIMENTO ENEEL
+                int cont =0;
+                while(!dados[cont].contains("VENCIMENTO ")){
+                    cont++;
+                }
+                // System.out.println("STRING RECEBIDA COM A DATA: "+ dados[cont]);
+                findDateInString(dados[cont+1]);
+            }
+            if(linha.contains("LIGHT SERVIÇOS") || linha.contains("81380.023")){
+                String padrao = "(\\d{2}/\\d{2}/\\d{4} R)";
+                Pattern pattern = Pattern.compile(padrao);
+                String parteEncontrada = "";
+                for(String l: dados){
+                    if(l.length()>10){
+                        Matcher matcher = pattern.matcher(l);
+                        if (matcher.find()) {
+                            parteEncontrada = matcher.group(1);
+                            //convertUSADate(parteEncontrada);
+                        }
+                    }
+                }
+                if(parteEncontrada.isEmpty()){
+                    System.out.println("PADRÃO NÃO ENCONTRADA");
+                }else{
+                    System.out.println("STRING RECEBIDA COM A DATA: "+ parteEncontrada);
+                    findDateInString(parteEncontrada);
+                } 
+            }
+            if(linha.contains("CPFL Energia")){
+                String padrao = "(\\D{3}/\\d{4} \\d{2}/\\d{2}/\\d{4})";
+                Pattern pattern = Pattern.compile(padrao);
+                String parteEncontrada = "";
+                for(String l: dados){
+                    if(l.length()>10){
+                        Matcher matcher = pattern.matcher(l);
+                        if (matcher.find()) {
+                            parteEncontrada = matcher.group(1);
+                        }
+                    }
+                }
+                if(parteEncontrada.isEmpty()){
+                    System.out.println("PADRÃO NÃO ENCONTRADA");
+                }else{
+                    System.out.println("STRING RECEBIDA COM A DATA: "+ parteEncontrada);
+                    findDateInString(parteEncontrada);
+                }
+            }
+            if(linha.contains("EDP São Paulo")){ // DATA DE VENCIMENTO EDP                
+                String padrao = "(\\d{2}\\/\\d{2}\\/\\d{4})";
+                Pattern pattern = Pattern.compile(padrao);
+                String parteEncontrada = "";
+                for(String l: dados){
+                    if(l.length()>10){
+                        Matcher matcher = pattern.matcher(l);
+                        if (matcher.find()) {
+                            parteEncontrada = matcher.group(1);
+                            convertUSADate(parteEncontrada);
+                        }
+                    }
+                }
+                if(parteEncontrada.isEmpty()){
+                    System.out.println("PADRÃO NÃO ENCONTRADA");
+                }else{
+                    System.out.println("STRING RECEBIDA COM A DATA: "+ parteEncontrada);
+                    findDateInString(parteEncontrada);
+                }
+            }
+            if(linha.contains("saneago") || linha.contains("SANEAGO")){ // DATA DE VENCIMENTO SANEAGO
+                String padrao = "(13/\\d{2}/202\\d{1})";
+                Pattern pattern = Pattern.compile(padrao);
+                String parteEncontrada = "";
+                for(String l: dados){
+                    if(l.length()>10){
+                        Matcher matcher = pattern.matcher(l);
+                        if (matcher.find()) {
+                            parteEncontrada = matcher.group(1);
+                            convertUSADate(parteEncontrada);
+                        }
+                    }
+                }
+                if(parteEncontrada.isEmpty()){
+                    System.out.println("PADRÃO NÃO ENCONTRADO");
+                }else{
+                    System.out.println("STRING RECEBIDA COM A DATA: "+ parteEncontrada);
+                    findDateInString(parteEncontrada);
+                }
+            }
+        }
         if(codigoBarras.length()> 40){
-            // Limpa o códido de barras removendo espaços, pontos, letras e pegando somente os 48 carecteres do código de barras
+            // Limpa o códido de barras removendo espaços, pontos, traços, letras e pegando somente os 48 carecteres do código de barras
             System.out.println("String completa do Código de Barras: "+codigoBarras);
-            codigoBarras = codigoBarras.replace(" ", "").replace(".", "");
+            codigoBarras = codigoBarras.replace(" ", "").replace(".", "").replace("-", "");
             codigoBarras = codigoBarras.replace("O", "0");
             codigoBarras = codigoBarras.replaceAll("\\D", "");
-            codigoBarras = codigoBarras.substring(0,48);
-            linhaDigitavelCompleta = codigoBarras;
-
-            //recuperando o valor do código de barras
-            valor = codigoBarras.substring(0, 11) + codigoBarras.substring(12);
-            valor = valor.substring(5, 15);
-            valor = valor.replaceFirst("^0+", "");
-            String reais = valor.substring(0, valor.length() - 2);
-            String centavos = valor.substring(valor.length() - 2);
-            valor = reais+"."+centavos;
-            criaTxtCodBarras();
+            if(codigoBarras.length()>45){
+                codigoBarras = codigoBarras.substring(0,48);
+                linhaDigitavelCompleta = codigoBarras;
+    
+                //recuperando o valor do código de barras
+                valor = codigoBarras.substring(0, 11) + codigoBarras.substring(12);
+                valor = valor.substring(5, 15);
+                valor = valor.replaceFirst("^0+", "");
+                String reais = valor.substring(0, valor.length() - 2);
+                String centavos = valor.substring(valor.length() - 2);
+                valor = reais+"."+centavos;
+                criaTxtCodBarras();
+            }
         }
     }
 
     private void processaLinhaDigitavel(String linhaDigitavel) {
         // LIMPA A LINHA DIGITÁVEL REMOVENDO ESPAÇOES E PONTOS
-        String res = linhaDigitavel.replace(".", "").replace(",", "").replace(")", "");
+        String res = linhaDigitavel.replace(".", "")
+                                    .replace(",", "")
+                                    .replace(")", "")
+                                    .replace("]", "");
         res = res.replace(" ", "");
 
         // EXTRAI SOMENTE A PARTE DA DATA E VALOR DA LINHA DIGITÁVEL - VALIDA SE A STRING É TEM O TAMANNHO MINIMO DE UMA LINHA DIGITÁVEL
@@ -359,6 +405,12 @@ public class ReaderInvoiceService {
         Files.move(Paths.get(path[0]), Paths.get(path[1]), StandardCopyOption.REPLACE_EXISTING);
     }
 
+    private void limparCampos(){
+        dataVencimento = null;
+        dataVencimento = null;
+        valor = null;
+    }
+
     private String[] origemDestino(Boolean processOK) {
         String[] origemDestino = { "", "" };
         String processs = "processados/";
@@ -395,6 +447,22 @@ public class ReaderInvoiceService {
             dataVencimento = formatoSaida.format(myData);
         } catch (Exception e) {
             System.out.println(e.getMessage());
+        }
+    }
+
+    private void findDateInString(String data) {
+        System.out.println("LINHA DATA RECEBIDA: "+ data);
+        data = data.replace("/", ".");
+        String padrao = "(\\d{2}\\.\\d{2}\\.\\d{4})";
+        Pattern pattern = Pattern.compile(padrao);
+        Matcher matcher = pattern.matcher(data);
+
+        if (matcher.find()) {
+            String parteEncontrada = matcher.group(1);
+            convertUSADate(parteEncontrada);
+            // return parteEncontrada;
+        } else {
+            System.out.println("Data de vencimento não encontrada");
         }
     }
 
