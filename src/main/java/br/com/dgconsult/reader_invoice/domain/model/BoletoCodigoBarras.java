@@ -15,13 +15,13 @@ import lombok.Setter;
 @Setter
 @NoArgsConstructor
 @AllArgsConstructor
-public class BoletoLinhaDigitavel {
+public class BoletoCodigoBarras {
 
     private String lojaOrigem;
 	private String dataVencimento;
 	private String valor;
-	private String linhaDigitavel;
-    private String tipoBoleto = "Alugueis e outros";
+	private String codigoBarras;
+    private String tipoBoleto = "Conta de Servicos - Agua - Luz - Gas";
 
     public void gerarTxt(String nomeArquivo, String path){
 		try (FileWriter writer = new FileWriter(path + "/" + nomeArquivo)) {
