@@ -5,6 +5,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
 import java.util.regex.Matcher;
@@ -24,7 +25,6 @@ import org.apache.pdfbox.text.PDFTextStripper;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
-import br.com.dgconsult.reader_invoice.domain.model.Boleto;
 import br.com.dgconsult.reader_invoice.domain.model.BoletoCodigoBarras;
 import br.com.dgconsult.reader_invoice.domain.model.BoletoLinhaDigitavel;
 import net.sourceforge.tess4j.Tesseract;
@@ -43,7 +43,8 @@ public class ReaderInvoiceService {
 
     String linhaDigitavelCompleta;
     String dataVencimento;
-    String valor;    
+    String valor;
+    String numeroDocumento;    
     String parte1 = "";
     String parte2 = "";
 
@@ -95,8 +96,7 @@ public class ReaderInvoiceService {
                 String namePage = "_pag_"+i+".txt";
                 nomeArquivo = invoice.replace(".pdf", namePage).replace("boletos\\", "");
                 if (res.length > 0) {
-                    // System.out.println(textoPagina);
-                    // processaBoleto(res);
+                    // System.out.println(textoPagina); //********************************* */
                     findLinhaDigitavel(res);
                 }
                 textoCompleto.append(textoPagina);
@@ -117,7 +117,7 @@ public class ReaderInvoiceService {
                     BufferedImage bim = pdfRenderer.renderImageWithDPI(page, 300, ImageType.RGB);
                     texto = tesseract.doOCR(bim);
                     res = texto.split("\n");
-                    // System.out.println(texto);
+                    // System.out.println(texto); //*************************************************** */
                     findLinhaDigitavel(res);
                 }
                 // processaBoleto(res);
@@ -138,9 +138,6 @@ public class ReaderInvoiceService {
             }
         }
     }
-
-
-
  
     private void findLinhaDigitavel(String[] dados) {
         System.out.println("Procurando linha digitável ou código de barras...");
@@ -156,7 +153,7 @@ public class ReaderInvoiceService {
             dataVencimento = null;
             if (linha.contains("34191") || linha.contains("2379") || linha.contains("13691") || linha.contains("03399")) {
                 linhaDigitavel = linha;
-                processaLinhaDigitavel(linhaDigitavel);
+                processaLinhaDigitavel(dados, linhaDigitavel);
             }
             if(linha.contains("34191") || linha.contains("50164")){
                 if(linha.contains("34191")){parte1 = linha;}
@@ -186,8 +183,6 @@ public class ReaderInvoiceService {
         }
         // System.out.println("Linha digitável: " + linhaDigitavel);
     }
-  
-
 
     private void processaBoletoServicos(String[] dados, String codigoBarras){
         for (String linha : dados){
@@ -309,13 +304,15 @@ public class ReaderInvoiceService {
         }
     }
 
-    private void processaLinhaDigitavel(String linhaDigitavel) {
+    private void processaLinhaDigitavel(String[] dados, String linhaDigitavel) {
         // LIMPA A LINHA DIGITÁVEL REMOVENDO ESPAÇOES E PONTOS
         String res = linhaDigitavel.replace(".", "")
                                     .replace(",", "")
                                     .replace(")", "")
                                     .replace("]", "");
         res = res.replace(" ", "");
+
+        setNumeroDocumento(dados);
 
         // EXTRAI SOMENTE A PARTE DA DATA E VALOR DA LINHA DIGITÁVEL - VALIDA SE A STRING É TEM O TAMANNHO MINIMO DE UMA LINHA DIGITÁVEL
         if (res.length() >= 47) {
@@ -365,6 +362,54 @@ public class ReaderInvoiceService {
         }
     }
 
+    private void setNumeroDocumento(String[] dados) {
+        System.out.println("Procurando \"Numero do Documento\" no boleto...");
+        numeroDocumento = null;
+        List<String> padores = new ArrayList<>();
+        padores.add("SHOPPING RIOMAR&(185\\s)"); //NAT Riomar Aracaju
+        padores.add("Leste Aricanduva&(04\\d{7})");// NAT ARICANDUVA
+        padores.add("24.276.833/0013-81&(BRS\\d{7})"); // NAT BARRA
+        padores.add("BEIRAMAR&(202\\d{4}154\\d{5})"); // NAT BEIRAMAR
+        padores.add("Boulevard Belém&(5900\\d{6})"); // NAT BOULEVARD BELÉM
+        padores.add("BOURBON SHOPPING&(00240\\d{5})"); // NAT BOURBON
+        padores.add("24.276.833/0001-48&(SVC202\\d{9})"); //NAT CATARINA
+        padores.add("GOIANIA SHOPPING&(8441\\d{5})"); //NAT GOIANA
+        padores.add("CENTER IBIRAPUERA&(0000\\d{5}A)"); //NAT IBIRAPUERA
+        padores.add("CENTER IBIRAPUERA&(202\\d{3}.\\d{5}.\\d{2})"); //NAT IBIRAPUERA 2
+        padores.add("(\\d{5}000089290\\d{5})"); //NAT Iguatemi Porto Alegre
+        padores.add("SOLA IMOVEIS&(26\\d{2}202\\d{1})"); //NAT Paulista
+        padores.add("SP MARKET&(13\\d{5})"); //NAT SP Market
+        padores.add("METRO TUCURUVI&(10\\d{5})"); //NAT Tucuruvi
+        padores.add("Shopping Vitória&(1\\d{1}000\\d{5})"); //NAT Vitoria
+        padores.add("WEST SHOPPING&(202\\d{6}900101)"); //NAT West
+        padores.add("ADM.GAUCHA&(\\d{4}100008929\\d{6})"); //NAT IGUATEMI PORTO ALEGRE
+        
+        String parteEncontrada = "";
+
+        for(String l: dados){
+            for(String p: padores){
+                String partes[] = p.split("&");
+                if(l.contains(partes[0])){
+                    for(String d: dados){
+                        Pattern pattern = Pattern.compile(partes[1]);
+                        Matcher matcher = pattern.matcher(d);
+                        if (matcher.find()) {
+                            parteEncontrada = matcher.group(1);
+                        } 
+                    }
+                }
+            }
+        }       
+
+        if(parteEncontrada.isEmpty()){
+            System.out.println("NÚMERO DO DOCUMENTO NÃO ENCONTRADO");
+        }else{
+            System.out.println("STRING COM O NÚMERO DO DOCUMENTO ENCONTRADA: "+ parteEncontrada);
+            numeroDocumento = parteEncontrada;
+        }
+        
+    }
+
     private void processaExcessaoLinhaDigitavel(){
         System.out.println(parte1);
         System.out.println(parte2);
@@ -397,6 +442,7 @@ public class ReaderInvoiceService {
         boleto.setLinhaDigitavel(linhaDigitavelCompleta);
         boleto.setValor(valor);
         boleto.setLojaOrigem(nomeArquivo.substring(1, nomeArquivo.length()-4));
+        boleto.setNumeroDocumento(numeroDocumento);
         boleto.gerarTxt(nomeArquivo, path);
         successProcess = true;
     }

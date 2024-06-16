@@ -20,7 +20,8 @@ public class BoletoLinhaDigitavel {
     private String lojaOrigem;
 	private String dataVencimento;
 	private String valor;
-	private String linhaDigitavel;
+	private String linhaDigitavel;    
+    private String numeroDocumento;
     private String tipoBoleto = "Alugueis e outros";
 
     public void gerarTxt(String nomeArquivo, String path){
